@@ -1,38 +1,31 @@
-import { Sprite } from './Sprite.js';
-
 export class Fighter {
-    constructor({
-        position,
-        imageSrc,
-        frameRate = 1,
-        frameWidth,
-        gap = 0,
-        frameBuffer = 10,
-        chromaKey,
-        flip = false
-    }) {
-        this.position = position;
-        this.sprite = new Sprite({
-            imageSrc,
-            frameRate,
-            frameWidth,
-            gap,
-            frameBuffer,
-            chromaKey
-        });
-        this.flip = flip;
+    constructor(selector, keys, opponent) {
+        this.sprite = new Sprite(selector);
+        this.keys = keys;
+        this.opponent = opponent;
+        this.x = 0;
+        this.speed = 3;
+        this.direction = 1;
     }
 
-    update() {
-        this.sprite.update();
-    }
+    update(keysPressed) {
+        // Движение
+        if (keysPressed[this.keys.left]) {
+            this.x -= this.speed;
+            this.sprite.setAnimation('walk_backward');
+        } else if (keysPressed[this.keys.right]) {
+            this.x += this.speed;
+            this.sprite.setAnimation('walk_forward');
+        } else {
+            this.sprite.setAnimation('idle');
+        }
 
-    draw(ctx) {
-        this.sprite.draw(
-            ctx,
-            this.position.x,
-            this.position.y,
-            this.flip
-        );
+        // Определение направления
+        const shouldFaceLeft = this.x > this.opponent.x;
+        this.sprite.flip(shouldFaceLeft);
+        this.direction = shouldFaceLeft ? -1 : 1;
+
+        // Обновление позиции
+        this.sprite.element.style.left = `${this.x}px`;
     }
 }
