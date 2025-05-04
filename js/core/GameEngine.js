@@ -1,8 +1,8 @@
-export class GameEngine { // Добавьте ключевое слово export
+export class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.sprites = [];
+        this.fighters = [];
         
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
@@ -13,17 +13,17 @@ export class GameEngine { // Добавьте ключевое слово export
         this.canvas.height = window.innerHeight;
     }
 
-    addSprite(sprite) {
-        this.sprites.push(sprite);
+    addFighter(fighter) {
+        this.fighters.push(fighter);
     }
 
     start() {
         const animate = () => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             
-            this.sprites.forEach(sprite => {
-                sprite.update();
-                sprite.draw(this.ctx, this.canvas);
+            this.fighters.forEach(fighter => {
+                fighter.update();
+                fighter.draw(this.ctx);
             });
             
             requestAnimationFrame(animate);

@@ -1,25 +1,31 @@
-import { GameEngine } from './core/GameEngine.js'; // Убедитесь что путь правильный
-import { Sprite } from './core/Sprite.js';
+import { GameEngine } from './core/GameEngine.js';
+import { Fighter } from './core/Fighter.js';
 
 const gameEngine = new GameEngine();
 
-// Проверьте параметры вашего спрайта!
-const scorpionIdle = new Sprite({
+// Скорпион (справа)
+const scorpion = new Fighter({
+    position: { x: 600, y: 250 },
     imageSrc: './assets/characters/scorpion/idle.png',
     frameRate: 7,
-    frameWidth: 104, // Должно совпадать с реальными размерами
-    gap: 5,
-    frameBuffer: 10
+    frameWidth: 110,
+    gap: 7,
+    flip: true
 });
 
-// Важно: проверьте загрузку изображения
-scorpionIdle.image.onerror = () => {
-    console.error("Failed to load sprite image!");
-};
+// Саб-Зиро (слева)
+const subzero = new Fighter({
+    position: { x: 200, y: 250 },
+    imageSrc: './assets/characters/subzero/idle.png',
+    frameRate: 12,
+    frameWidth: 110, // Подберите под ваши спрайты
+    gap: 7,
+    flip: false // Зеркально отражаем
+});
 
-gameEngine.addSprite(scorpionIdle);
+gameEngine.addFighter(scorpion);
+gameEngine.addFighter(subzero);
 
-// Запуск после полной загрузки
 window.addEventListener('load', () => {
     gameEngine.start();
 });
