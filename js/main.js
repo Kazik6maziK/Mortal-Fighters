@@ -1,22 +1,25 @@
-import { GameEngine } from './core/GameEngine.js';
+import { GameEngine } from './core/GameEngine.js'; // Убедитесь что путь правильный
 import { Sprite } from './core/Sprite.js';
 
-// Инициализация игрового движка
 const gameEngine = new GameEngine();
 
-// Создание спрайта (параметры укажите свои)
+// Проверьте параметры вашего спрайта!
 const scorpionIdle = new Sprite({
     imageSrc: './assets/characters/scorpion/idle.png',
     frameRate: 7,
-    frameWidth: 104,
-    gap: 10,
-    frameBuffer: 7
+    frameWidth: 104, // Должно совпадать с реальными размерами
+    gap: 5,
+    frameBuffer: 10
 });
 
-// Добавление спрайта в движок
+// Важно: проверьте загрузку изображения
+scorpionIdle.image.onerror = () => {
+    console.error("Failed to load sprite image!");
+};
+
 gameEngine.addSprite(scorpionIdle);
 
-// Запуск после загрузки изображения
-scorpionIdle.image.onload = () => {
+// Запуск после полной загрузки
+window.addEventListener('load', () => {
     gameEngine.start();
-};
+});

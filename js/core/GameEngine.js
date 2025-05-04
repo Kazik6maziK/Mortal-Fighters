@@ -1,4 +1,4 @@
-export class GameEngine {
+export class GameEngine { // Добавьте ключевое слово export
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -26,7 +26,7 @@ export class GameEngine {
                 sprite.draw(this.ctx, this.canvas);
             });
             
-            requestAnimationFrame(animate.bind(this));
+            requestAnimationFrame(animate);
         };
         animate();
     }
