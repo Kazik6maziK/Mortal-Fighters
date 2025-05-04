@@ -1,33 +1,22 @@
+import { GameEngine } from './core/GameEngine.js';
 import { Sprite } from './core/Sprite.js';
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+// Инициализация игрового движка
+const gameEngine = new GameEngine();
 
-// Настройка размеров canvas
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-// Параметры спрайта (подставьте свои значения)
+// Создание спрайта (параметры укажите свои)
 const scorpionIdle = new Sprite({
     imageSrc: './assets/characters/scorpion/idle.png',
-    frameRate: 7,    // Количество кадров
-    frameWidth: 104,  // Ширина одного кадра
-    gap: 10,          // Расстояние между кадрами
-    frameBuffer: 7    // Скорость анимации
+    frameRate: 7,
+    frameWidth: 104,
+    gap: 10,
+    frameBuffer: 7
 });
 
-function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    scorpionIdle.update();
-    scorpionIdle.draw(ctx, canvas);
-    requestAnimationFrame(animate);
-}
+// Добавление спрайта в движок
+gameEngine.addSprite(scorpionIdle);
 
-// Запуск анимации после загрузки
+// Запуск после загрузки изображения
 scorpionIdle.image.onload = () => {
-    animate();
+    gameEngine.start();
 };
