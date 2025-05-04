@@ -1,0 +1,8 @@
+export const CONFIG = {
+    CANVAS_WIDTH: 1024,
+    CANVAS_HEIGHT: 576,
+    GRAVITY: 0.7,
+    FIGHTER_SPEED: 5,
+    ATTACK_DAMAGE: 10,
+    FRAME_BUFFER: 5
+};
