@@ -7,6 +7,7 @@ export class Sprite {
         this.direction = 1;
         this.speed = 3;
         this.state = 'idle';
+        this.isAttacking = false;
         
         // Инициализация размеров
         this.element.src = `${this.config.basePath}/${this.state}.gif`;
@@ -20,10 +21,24 @@ export class Sprite {
         this.element.style.height = `${this.height}px`;
     }
 
-    setAnimation(state) {
-        if (this.state !== state) {
-            this.state = state;
-            this.element.src = `${this.config.basePath}/${state}.gif`;
+    setAnimation(state, attackType = null) {
+        let newState = state;
+        if (attackType) {
+            newState = attackType;
+            this.isAttacking = true;
+            
+            // Автоматически вернуться в состояние idle после завершения анимации
+            setTimeout(() => {
+                this.isAttacking = false;
+                if (this.state === attackType) {
+                    this.setAnimation('idle');
+                }
+            }, 500); // Предполагаемая длительность анимации удара
+        }
+
+        if (this.state !== newState) {
+            this.state = newState;
+            this.element.src = `${this.config.basePath}/${newState}.gif`;
             this.element.onload = () => {
                 this.updateSize();
                 this.updatePosition();
@@ -45,5 +60,9 @@ export class Sprite {
         this.x = Math.max(minX, Math.min(this.x, maxX));
         
         this.wrapper.style.left = `${this.x}px`;
+    }
+
+    canStartNewAction() {
+        return !this.isAttacking;
     }
 }

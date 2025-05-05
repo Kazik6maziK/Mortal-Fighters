@@ -5,7 +5,17 @@ import { InputHandler } from './core/InputHandler.js';
 const CONFIG = {
     BOUNDARY_OFFSET: 0.1, // 10% отступ от краёв
     VERTICAL_POSITION: 15, // % от нижнего края
-    MOVEMENT_SPEED: 4
+    MOVEMENT_SPEED: 4,
+    CONTROLS: {
+        scorpion: {
+            left: 'a',
+            right: 'd'
+        },
+        subzero: {
+            left: 'arrowleft',
+            right: 'arrowright'
+        }
+    }
 };
 
 class Game {
@@ -40,7 +50,7 @@ class Game {
 
     async preloadAssets() {
         const loadSprite = (sprite) => {
-            const states = ['idle', 'walkforward', 'walkback'];
+            const states = ['idle', 'walkforward', 'walkback', 'punch', 'kick'];
             return Promise.all(states.map(state => {
                 return new Promise(resolve => {
                     const img = new Image();
@@ -66,42 +76,44 @@ class Game {
     }
 
     updateCharacters() {
-        // Обновление Скорпиона
-        this.updateCharacter(
-            this.characters.scorpion,
-            ['a', 'd'],
-            this.characters.subzero.x
-        );
-
-        // Обновление Саб-Зиро
-        this.updateCharacter(
-            this.characters.subzero,
-            ['ArrowLeft', 'ArrowRight'],
-            this.characters.scorpion.x
-        );
+        this.updateCharacter('scorpion', this.characters.subzero.x);
+        this.updateCharacter('subzero', this.characters.scorpion.x);
     }
 
-    updateCharacter(character, [leftKey, rightKey], opponentX) {
-        // Движение влево
-        if (this.input.keys[leftKey]) {
+    updateCharacter(characterId, opponentX) {
+        const character = this.characters[characterId];
+        const controls = CONFIG.CONTROLS[characterId];
+        
+        if (!character.canStartNewAction()) {
+            return;
+        }
+
+        // Проверка на удары
+        const shouldFaceLeft = character.x > opponentX;
+        const attackType = this.input.getAttackType(characterId, shouldFaceLeft);
+        
+        if (attackType) {
+            character.setAnimation('idle', attackType);
+            return;
+        }
+
+        // Движение
+        if (this.input.keys[controls.left]) {
             character.x -= CONFIG.MOVEMENT_SPEED;
-            character.setAnimation(character.direction === 1 ? 'walkback' : 'walkforward');
+            character.setAnimation('walkback');
         }
-        // Движение вправо
-        else if (this.input.keys[rightKey]) {
+        else if (this.input.keys[controls.right]) {
             character.x += CONFIG.MOVEMENT_SPEED;
-            character.setAnimation(character.direction === 1 ? 'walkforward' : 'walkback');
+            character.setAnimation('walkforward');
         }
-        // Без движения
         else {
             character.setAnimation('idle');
         }
 
-        // Автоматический разворот
-        const shouldFlip = character.x > opponentX;
-        character.updateDirection(shouldFlip ? -1 : 1);
+        // Разворот персонажа
+        character.updateDirection(shouldFaceLeft ? -1 : 1);
 
-        // Обновление позиции с границами
+        // Обновление позиции с учётом границ
         const minX = window.innerWidth * CONFIG.BOUNDARY_OFFSET + character.width/2;
         const maxX = window.innerWidth * (1 - CONFIG.BOUNDARY_OFFSET) - character.width/2;
         character.x = Math.max(minX, Math.min(character.x, maxX));
