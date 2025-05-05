@@ -3,11 +3,16 @@ export class Sprite {
         this.element = document.querySelector(selector);
         this.wrapper = this.element.parentElement;
         this.config = config;
-        this.x = 0;
+        this.x = config.startX || 0;
         this.direction = 1;
         this.speed = 3;
         this.state = 'idle';
         this.isAttacking = false;
+        this.isHurt = false;
+        this.isDead = false;
+        this.isWinner = false;
+        this.health = config.health || 100;
+        this.characterId = config.characterId;
         
         // Инициализация размеров
         this.element.src = `${this.config.basePath}/${this.state}.gif`;
@@ -22,18 +27,26 @@ export class Sprite {
     }
 
     setAnimation(state, attackType = null) {
+        if (this.isDead || this.isWinner) return; // Не менять анимацию если персонаж мертв или победил
         let newState = state;
+
+        if (this.isHurt) return;
+
         if (attackType) {
             newState = attackType;
             this.isAttacking = true;
             
-            // Автоматически вернуться в состояние idle после завершения анимации
             setTimeout(() => {
                 this.isAttacking = false;
                 if (this.state === attackType) {
                     this.setAnimation('idle');
                 }
-            }, 500); // Предполагаемая длительность анимации удара
+            }, 500);
+        }
+
+        // Корректируем анимацию ходьбы для Саб-Зиро
+        if (this.characterId === 'subzero' && (state === 'walkforward' || state === 'walkback')) {
+            newState = state === 'walkforward' ? 'walkback' : 'walkforward';
         }
 
         if (this.state !== newState) {
@@ -62,7 +75,58 @@ export class Sprite {
         this.wrapper.style.left = `${this.x}px`;
     }
 
+    takeHit(damage) {
+        if (this.isHurt) return; // Предотвращаем получение урона во время анимации получения урона
+
+        this.health = Math.max(0, this.health - damage);
+        this.isHurt = true;
+
+        // Выбираем случайную анимацию получения урона
+        const hitAnimation = `hit${Math.floor(Math.random() * 3) + 1}`;
+        this.state = hitAnimation;
+        this.element.src = `${this.config.basePath}/${hitAnimation}.gif`;
+
+        // Возвращаемся в исходное состояние после анимации
+        setTimeout(() => {
+            this.isHurt = false;
+            if (this.state === hitAnimation) {
+                this.setAnimation('idle');
+            }
+        }, 400); // Длительность анимации получения урона
+
+        return this.health <= 0; // Возвращаем true если персонаж побежден
+    }
+
+    die() {
+        this.isDead = true;
+        this.state = 'death1';
+        this.element.src = `${this.config.basePath}/death1.gif`;
+        
+        setTimeout(() => {
+            if (this.isDead) {
+                this.state = 'fall';
+                this.element.src = `${this.config.basePath}/fall.gif`;
+            }
+        }, 5000);
+    }
+
+    win() {
+        this.isWinner = true;
+        this.state = 'win';
+        this.element.src = `${this.config.basePath}/win.gif`;
+    }
+
+    reset() {
+        this.health = this.config.health || 100;
+        this.isDead = false;
+        this.isWinner = false;
+        this.isHurt = false;
+        this.isAttacking = false;
+        this.state = 'idle';
+        this.element.src = `${this.config.basePath}/${this.state}.gif`;
+    }
+
     canStartNewAction() {
-        return !this.isAttacking;
+        return !this.isAttacking && !this.isHurt && !this.isDead && !this.isWinner;
     }
 }
