@@ -84,7 +84,7 @@ export class Sprite {
         // Выбираем случайную анимацию получения урона
         const hitAnimation = `hit${Math.floor(Math.random() * 3) + 1}`;
         this.state = hitAnimation;
-        this.element.src = `${this.config.basePath}/${hitAnimation}.gif`;
+        this.element.ssrc = `${this.config.basePath}/${hitAnimation}.gif`;
 
         // Возвращаемся в исходное состояние после анимации
         setTimeout(() => {
