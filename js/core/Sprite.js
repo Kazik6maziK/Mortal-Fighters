@@ -11,8 +11,16 @@ export class Sprite {
         this.isHurt = false;
         this.isDead = false;
         this.isWinner = false;
+        this.isJumping = false;
+        this.isDucking = false;
+        this.isInJumpingState = false;
+        this.isInDuckingState = false;
+        this.isBlocking = false;
+        this.isInBlockingState = false;
         this.health = config.health || 100;
         this.characterId = config.characterId;
+        this.lastJumpTime = 0;
+        this.jumpCooldown = 1500; // 1.5 секунды перезарядки
         
         // Инициализация размеров
         this.element.src = `${this.config.basePath}/${this.state}.gif`;
@@ -26,13 +34,68 @@ export class Sprite {
         this.element.style.height = `${this.height}px`;
     }
 
-    setAnimation(state, attackType = null) {
-        if (this.isDead || this.isWinner) return; // Не менять анимацию если персонаж мертв или победил
+    setAnimation(state, attackType = null, isHeld = false) {
+        if (this.isDead || this.isWinner) return;
         let newState = state;
 
         if (this.isHurt) return;
 
-        if (attackType) {
+        // Обработка блокирования
+        if (state === 'blockingidle' && !this.isInBlockingState) {
+            this.isBlocking = true;
+            this.isInBlockingState = true;
+            this.state = 'blockingidle';
+            this.element.src = `${this.config.basePath}/blockingidle.gif`;
+            
+            setTimeout(() => {
+                if (this.isBlocking) {
+                    this.state = 'blockingidle1';
+                    this.element.src = `${this.config.basePath}/blockingidle1.gif`;
+                }
+            }, 150);
+        }
+        // Обработка прыжка и приседания
+        else if (state === 'jumping' && !this.isInJumpingState) {
+            const currentTime = Date.now();
+            if (currentTime - this.lastJumpTime < this.jumpCooldown) {
+                return;
+            }
+            
+            this.isJumping = true;
+            this.isInJumpingState = true;
+            this.state = 'jumping';
+            this.element.src = `${this.config.basePath}/jumping.gif`;
+            
+            setTimeout(() => {
+                if (this.isJumping) {
+                    this.state = 'jumping1';
+                    this.element.src = `${this.config.basePath}/jumping1.gif`;
+                    
+                    setTimeout(() => {
+                        if (this.isJumping) {
+                            this.isJumping = false;
+                            this.isInJumpingState = false;
+                            this.lastJumpTime = Date.now();
+                            this.setAnimation('idle');
+                        }
+                    }, 250);
+                }
+            }, 150);
+        }
+        else if (state === 'ducking' && !this.isInDuckingState) {
+            this.isDucking = true;
+            this.isInDuckingState = true;
+            this.state = 'ducking';
+            this.element.src = `${this.config.basePath}/ducking.gif`;
+            
+            setTimeout(() => {
+                if (this.isDucking) {
+                    this.state = 'ducking1';
+                    this.element.src = `${this.config.basePath}/ducking1.gif`;
+                }
+            }, 150);
+        }
+        else if (attackType) {
             newState = attackType;
             this.isAttacking = true;
             
@@ -49,13 +112,37 @@ export class Sprite {
             newState = state === 'walkforward' ? 'walkback' : 'walkforward';
         }
 
-        if (this.state !== newState) {
+        if (this.state !== newState && !this.isInJumpingState && !this.isInDuckingState && !this.isInBlockingState) {
             this.state = newState;
             this.element.src = `${this.config.basePath}/${newState}.gif`;
             this.element.onload = () => {
                 this.updateSize();
                 this.updatePosition();
             };
+        }
+    }
+
+    endJump() {
+        if (this.isInJumpingState) {
+            this.isJumping = false;
+            this.isInJumpingState = false;
+            this.setAnimation('idle');
+        }
+    }
+
+    endDuck() {
+        if (this.isInDuckingState) {
+            this.isDucking = false;
+            this.isInDuckingState = false;
+            this.setAnimation('idle');
+        }
+    }
+
+    endBlock() {
+        if (this.isInBlockingState) {
+            this.isBlocking = false;
+            this.isInBlockingState = false;
+            this.setAnimation('idle');
         }
     }
 
@@ -72,11 +159,24 @@ export class Sprite {
         const maxX = window.innerWidth * 0.9 - this.width/2;
         this.x = Math.max(minX, Math.min(this.x, maxX));
         
+        // Добавляем эффект прыжка через CSS transform
+        let transform = `scaleX(${this.direction})`;
+        if (this.isJumping) {
+            // Разная высота для разных фаз прыжка
+            const jumpHeight = this.state === 'jumping' ? -30 : -60;
+            transform += ` translateY(${jumpHeight}px)`;
+        }
+        
+        this.element.style.transform = transform;
         this.wrapper.style.left = `${this.x}px`;
+        
+        // Добавляем плавность анимации
+        this.element.style.transition = 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)';
     }
 
     takeHit(damage) {
         if (this.isHurt) return; // Предотвращаем получение урона во время анимации получения урона
+        if (this.isBlocking) return; // Не получаем урон во время блока
 
         this.health = Math.max(0, this.health - damage);
         this.isHurt = true;
@@ -84,7 +184,7 @@ export class Sprite {
         // Выбираем случайную анимацию получения урона
         const hitAnimation = `hit${Math.floor(Math.random() * 3) + 1}`;
         this.state = hitAnimation;
-        this.element.ssrc = `${this.config.basePath}/${hitAnimation}.gif`;
+        this.element.src = `${this.config.basePath}/${hitAnimation}.gif`;
 
         // Возвращаемся в исходное состояние после анимации
         setTimeout(() => {
@@ -122,6 +222,12 @@ export class Sprite {
         this.isWinner = false;
         this.isHurt = false;
         this.isAttacking = false;
+        this.isJumping = false;
+        this.isDucking = false;
+        this.isInJumpingState = false;
+        this.isInDuckingState = false;
+        this.isBlocking = false;
+        this.isInBlockingState = false;
         this.state = 'idle';
         this.element.src = `${this.config.basePath}/${this.state}.gif`;
     }

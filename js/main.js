@@ -73,7 +73,9 @@ class Game {
                 'idle', 'walkforward', 'walkback', 
                 'punch', 'kick', 
                 'hit1', 'hit2', 'hit3',
-                'death1', 'fall', 'win'
+                'death1', 'fall', 'win',
+                'jumping', 'jumping1',
+                'ducking', 'ducking1'
             ];
             return Promise.all(states.map(state => {
                 return new Promise(resolve => {
@@ -175,26 +177,58 @@ class Game {
             return;
         }
 
-        // Проверка на удары
+        // Проверка на удары (нельзя атаковать во время блока)
         const shouldFaceLeft = character.x > opponentX;
         const attackType = this.input.getAttackType(characterId, shouldFaceLeft);
         
-        if (attackType) {
+        if (attackType && !character.isBlocking) {
             character.setAnimation('idle', attackType);
             this.checkHit(character, opponent, attackType);
             return;
         }
 
-        // Движение
+        // Проверка на прыжок, приседание и блок
+        const moveType = this.input.getMoveType(characterId);
+        
+        // Проверяем отпускание клавиш
+        if (this.input.isJumpKeyReleased(characterId)) {
+            character.endJump();
+        }
+        if (this.input.isDuckKeyReleased(characterId)) {
+            character.endDuck();
+        }
+        if (this.input.isBlockKeyReleased(characterId)) {
+            character.endBlock();
+        }
+
+        // Обработка приседания
+        if (moveType.type === 'ducking') {
+            character.setAnimation('ducking');
+        }
+        // Обработка блокирования
+        else if (moveType.type === 'blockingidle') {
+            character.setAnimation('blockingidle');
+            return;
+        }
+        // Обработка прыжка
+        else if (moveType.type === 'jumping') {
+            character.setAnimation('jumping');
+        }
+
+        // Движение (работает даже во время прыжка)
         if (this.input.keys[controls.left]) {
             character.x -= CONFIG.MOVEMENT_SPEED;
-            character.setAnimation('walkback');
+            if (!character.isJumping && !character.isDucking && !character.isBlocking) {
+                character.setAnimation('walkback');
+            }
         }
         else if (this.input.keys[controls.right]) {
             character.x += CONFIG.MOVEMENT_SPEED;
-            character.setAnimation('walkforward');
+            if (!character.isJumping && !character.isDucking && !character.isBlocking) {
+                character.setAnimation('walkforward');
+            }
         }
-        else {
+        else if (!character.isJumping && !character.isDucking && !character.isBlocking) {
             character.setAnimation('idle');
         }
 
