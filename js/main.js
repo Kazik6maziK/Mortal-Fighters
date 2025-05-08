@@ -1,5 +1,6 @@
 import { Sprite } from './core/Sprite.js';
 import { InputHandler } from './core/InputHandler.js';
+import { SoundManager } from './core/SoundManager.js';
 
 // Конфигурация игры
 const CONFIG = {
@@ -9,18 +10,22 @@ const CONFIG = {
     MAX_HEALTH: 100,
     ATTACK_RANGE: 100, // Дистанция для попадания
     DAMAGE: {
-        punch: 10,
-        kick: 15
+        punch: 5,
+        kick: 8,
+        kickback: 10,
+        uppercut: 13
     },
     FIGHT_RESET_DELAY: 5000, // 5 секунд до перезапуска боя
     CONTROLS: {
         scorpion: {
             left: 'a',
-            right: 'd'
+            right: 'd',
+            duck: 's'
         },
         subzero: {
             left: 'arrowleft',
-            right: 'arrowright'
+            right: 'arrowright',
+            duck: 'arrowdown'
         }
     }
 };
@@ -34,7 +39,12 @@ class Game {
             scorpion: document.getElementById('scorpion-health'),
             subzero: document.getElementById('subzero-health')
         };
+        this.damageBars = {
+            scorpion: document.getElementById('scorpion-damage'),
+            subzero: document.getElementById('subzero-damage')
+        };
         this.gameOver = false;
+        this.soundManager = new SoundManager();
         this.init();
     }
 
@@ -60,6 +70,9 @@ class Game {
         // Предзагрузка всех анимаций
         await this.preloadAssets();
         
+        // Проигрываем звук "Fight!" при старте игры
+        this.soundManager.playFightSound();
+        
         // Старт игрового цикла
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
         
@@ -71,7 +84,7 @@ class Game {
         const loadSprite = (sprite) => {
             const states = [
                 'idle', 'walkforward', 'walkback', 
-                'punch', 'kick', 
+                'punch', 'kick', 'kickback', 'uppercut',
                 'hit1', 'hit2', 'hit3',
                 'death1', 'fall', 'win',
                 'jumping', 'jumping1',
@@ -93,8 +106,27 @@ class Game {
     }
 
     updateHealthBars() {
+        // Зеленый бар (текущее HP)
         this.healthBars.scorpion.style.width = `${this.characters.scorpion.health}%`;
         this.healthBars.subzero.style.width = `${this.characters.subzero.health}%`;
+        // Красный бар (анимированное "отнятие" HP)
+        this.animateDamageBar('scorpion');
+        this.animateDamageBar('subzero');
+    }
+
+    animateDamageBar(character) {
+        const hp = this.characters[character].health;
+        const damageBar = this.damageBars[character];
+        // Если красный бар уже меньше или равен HP, просто выставляем равным HP
+        const currentWidth = parseFloat(damageBar.style.width) || 0;
+        if (currentWidth <= hp) {
+            damageBar.style.width = hp + '%';
+        } else {
+            // Анимированное уменьшение до нового HP
+            setTimeout(() => {
+                damageBar.style.width = hp + '%';
+            }, 50);
+        }
     }
 
     handleResize() {
@@ -117,12 +149,17 @@ class Game {
 
     checkHit(attacker, defender, attackType) {
         const distance = Math.abs(attacker.x - defender.x);
-        if (distance <= CONFIG.ATTACK_RANGE) {
+        if (distance <= CONFIG.ATTACK_RANGE && attacker.isAttacking) {
             // Проверяем, что атакующий смотрит в сторону противника
             const isAttackerFacingRight = attacker.direction === 1;
             const isDefenderOnRight = attacker.x < defender.x;
             
             if (isAttackerFacingRight === isDefenderOnRight) {
+                // Проигрываем звуки при попадании
+                this.soundManager.playBattleCry(); // Звук атакующего
+                this.soundManager.playHitSound(); // Звук удара
+                this.soundManager.playHitScream(); // Звук получающего урон
+
                 const damage = CONFIG.DAMAGE[attackType];
                 const isDefeated = defender.takeHit(damage);
                 this.updateHealthBars();
@@ -130,7 +167,15 @@ class Game {
                 if (isDefeated && !this.gameOver) {
                     this.endFight(attacker, defender);
                 }
+            } else {
+                // Проигрываем звуки при промахе (неправильное направление)
+                this.soundManager.playBattleCry(); // Звук атакующего
+                this.soundManager.playMissSound(); // Звук промаха
             }
+        } else if (attacker.isAttacking) {
+            // Проигрываем звуки при промахе (вне зоны досягаемости)
+            this.soundManager.playBattleCry(); // Звук атакующего
+            this.soundManager.playMissSound(); // Звук промаха
         }
     }
 
@@ -140,6 +185,10 @@ class Game {
         // Запускаем анимации победы/поражения
         winner.win();
         loser.die();
+
+        // Проигрываем звук победы
+        const winnerId = winner === this.characters.scorpion ? 'scorpion' : 'subzero';
+        this.soundManager.playVictorySound(winnerId);
 
         // Перезапускаем бой через 5 секунд
         setTimeout(() => this.resetFight(), CONFIG.FIGHT_RESET_DELAY);
@@ -166,6 +215,9 @@ class Game {
         Object.values(this.characters).forEach(character => {
             character.updatePosition();
         });
+
+        // Проигрываем звук "Fight!" при перезапуске боя
+        this.soundManager.playFightSound();
     }
 
     updateCharacter(characterId, opponentX) {
@@ -177,11 +229,11 @@ class Game {
             return;
         }
 
-        // Проверка на удары (нельзя атаковать во время блока)
+        // Проверка на удары (нельзя атаковать во время блока и в приседе)
         const shouldFaceLeft = character.x > opponentX;
         const attackType = this.input.getAttackType(characterId, shouldFaceLeft);
         
-        if (attackType && !character.isBlocking) {
+        if (attackType && !character.isBlocking && !character.isDucking) {
             character.setAnimation('idle', attackType);
             this.checkHit(character, opponent, attackType);
             return;
@@ -199,37 +251,46 @@ class Game {
         }
         if (this.input.isBlockKeyReleased(characterId)) {
             character.endBlock();
+            // Если после отпускания блока все еще нажат присед, возвращаемся в присед
+            if (this.input.keys[controls.duck]) {
+                character.setAnimation('ducking');
+            }
         }
 
-        // Обработка приседания
-        if (moveType.type === 'ducking') {
-            character.setAnimation('ducking');
+        // Обработка приседания и блока
+        if (moveType.type === 'blockingduck') {
+            character.setAnimation('blockingduck');
+            return;
         }
-        // Обработка блокирования
         else if (moveType.type === 'blockingidle') {
             character.setAnimation('blockingidle');
             return;
         }
-        // Обработка прыжка
+        else if (moveType.type === 'ducking') {
+            character.setAnimation('ducking');
+            return;
+        }
         else if (moveType.type === 'jumping') {
             character.setAnimation('jumping');
         }
 
-        // Движение (работает даже во время прыжка)
-        if (this.input.keys[controls.left]) {
-            character.x -= CONFIG.MOVEMENT_SPEED;
-            if (!character.isJumping && !character.isDucking && !character.isBlocking) {
-                character.setAnimation('walkback');
+        // Движение (работает только если не в приседе и не в блоке)
+        if (!character.isDucking && !character.isBlocking) {
+            if (this.input.keys[controls.left]) {
+                character.x -= CONFIG.MOVEMENT_SPEED;
+                if (!character.isJumping) {
+                    character.setAnimation('walkback');
+                }
             }
-        }
-        else if (this.input.keys[controls.right]) {
-            character.x += CONFIG.MOVEMENT_SPEED;
-            if (!character.isJumping && !character.isDucking && !character.isBlocking) {
-                character.setAnimation('walkforward');
+            else if (this.input.keys[controls.right]) {
+                character.x += CONFIG.MOVEMENT_SPEED;
+                if (!character.isJumping) {
+                    character.setAnimation('walkforward');
+                }
             }
-        }
-        else if (!character.isJumping && !character.isDucking && !character.isBlocking) {
-            character.setAnimation('idle');
+            else if (!character.isJumping) {
+                character.setAnimation('idle');
+            }
         }
 
         // Разворот персонажа
@@ -252,7 +313,38 @@ class Game {
 
         requestAnimationFrame((newTimestamp) => this.gameLoop(newTimestamp));
     }
+
+    checkGameOver() {
+        if (this.characters.scorpion.health <= 0) {
+            this.gameOver = true;
+            this.winner = 'subzero';
+            this.soundManager.playVictorySound('subzero');
+        } else if (this.characters.subzero.health <= 0) {
+            this.gameOver = true;
+            this.winner = 'scorpion';
+            this.soundManager.playVictorySound('scorpion');
+        }
+    }
+
+    // Показать гифку FIGHT! на 1 секунду
+    showFightGif() {
+        const fightGif = document.getElementById('fight-gif');
+        if (!fightGif) return;
+        fightGif.style.display = 'block';
+        setTimeout(() => {
+            fightGif.style.display = 'none';
+        }, 1000);
+    }
 }
 
-// Запуск игры
-new Game();
+// Переопределим playFightSound чтобы показывать гифку
+const origPlayFightSound = SoundManager.prototype.playFightSound;
+SoundManager.prototype.playFightSound = function() {
+    origPlayFightSound.call(this);
+    if (window.gameInstance && typeof window.gameInstance.showFightGif === 'function') {
+        window.gameInstance.showFightGif();
+    }
+};
+
+// Создаем игру и сохраняем ссылку для FIGHT! гифки
+window.gameInstance = new Game();

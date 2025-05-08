@@ -20,7 +20,9 @@ export class Sprite {
         this.health = config.health || 100;
         this.characterId = config.characterId;
         this.lastJumpTime = 0;
+        this.lastAttackTime = 0;
         this.jumpCooldown = 1500; // 1.5 секунды перезарядки
+        this.attackCooldown = 1000; // 1 секунда перезарядки атаки
         
         // Инициализация размеров
         this.element.src = `${this.config.basePath}/${this.state}.gif`;
@@ -40,6 +42,15 @@ export class Sprite {
 
         if (this.isHurt) return;
 
+        // Проверка перезарядки атаки
+        if (attackType) {
+            const currentTime = Date.now();
+            if (currentTime - this.lastAttackTime < this.attackCooldown) {
+                return;
+            }
+            this.lastAttackTime = currentTime;
+        }
+
         // Обработка блокирования
         if (state === 'blockingidle' && !this.isInBlockingState) {
             this.isBlocking = true;
@@ -51,6 +62,20 @@ export class Sprite {
                 if (this.isBlocking) {
                     this.state = 'blockingidle1';
                     this.element.src = `${this.config.basePath}/blockingidle1.gif`;
+                }
+            }, 150);
+        }
+        // Обработка блока в приседе
+        else if (state === 'blockingduck' && !this.isInBlockingState) {
+            this.isBlocking = true;
+            this.isInBlockingState = true;
+            this.state = 'blockingduck';
+            this.element.src = `${this.config.basePath}/blockingduck.gif`;
+            
+            setTimeout(() => {
+                if (this.isBlocking) {
+                    this.state = 'blockingduck1';
+                    this.element.src = `${this.config.basePath}/blockingduck1.gif`;
                 }
             }, 150);
         }
@@ -104,7 +129,7 @@ export class Sprite {
                 if (this.state === attackType) {
                     this.setAnimation('idle');
                 }
-            }, 500);
+            }, 625);
         }
 
         // Корректируем анимацию ходьбы для Саб-Зиро
@@ -186,6 +211,11 @@ export class Sprite {
         this.state = hitAnimation;
         this.element.src = `${this.config.basePath}/${hitAnimation}.gif`;
 
+        // Добавляем откидывание назад
+        const knockbackDistance = 5; // Расстояние откидывания в пикселях
+        const knockbackDirection = this.direction * -1; // Направление откидывания (противоположное направлению персонажа)
+        this.x += knockbackDistance * knockbackDirection;
+
         // Возвращаемся в исходное состояние после анимации
         setTimeout(() => {
             this.isHurt = false;
@@ -233,6 +263,8 @@ export class Sprite {
     }
 
     canStartNewAction() {
-        return !this.isAttacking && !this.isHurt && !this.isDead && !this.isWinner;
+        const currentTime = Date.now();
+        return !this.isAttacking && !this.isHurt && !this.isDead && !this.isWinner && 
+               (currentTime - this.lastAttackTime >= this.attackCooldown);
     }
 }

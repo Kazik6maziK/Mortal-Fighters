@@ -26,9 +26,9 @@ export class InputHandler {
 
     isAttackKeyPressed(character) {
         if (character === 'scorpion') {
-            return this.keys['k'] || (this.keys['j'] || this.keys['l']);
+            return this.keys['k'] || this.keys['j'] || this.keys['l'] || this.keys['i'];
         } else if (character === 'subzero') {
-            return this.keys['5'] || (this.keys['4'] || this.keys['6']);
+            return this.keys['5'] || this.keys['4'] || this.keys['6'] || this.keys['8'];
         }
         return false;
     }
@@ -36,27 +36,46 @@ export class InputHandler {
     getAttackType(character, facingLeft) {
         if (character === 'scorpion') {
             if (this.keys['k']) return 'kick';
+            if (this.keys['i']) return 'uppercut';
+            if (facingLeft && this.keys['l']) return 'kickback';
+            if (!facingLeft && this.keys['j']) return 'kickback';
             if (facingLeft && this.keys['j']) return 'punch';
             if (!facingLeft && this.keys['l']) return 'punch';
         } else if (character === 'subzero') {
             if (this.keys['5']) return 'kick';
+            if (this.keys['8']) return 'uppercut';
+            if (facingLeft && this.keys['6']) return 'kickback';
+            if (!facingLeft && this.keys['4']) return 'kickback';
             if (facingLeft && this.keys['4']) return 'punch';
             if (!facingLeft && this.keys['6']) return 'punch';
         }
         return null;
     }
 
-    getMoveType(character) {
-        if (character === 'scorpion') {
-            if (this.keys['w']) return { type: 'jumping', isHeld: true };
-            if (this.keys['s']) return { type: 'ducking', isHeld: true };
-            if (this.keys[' ']) return { type: 'blockingidle', isHeld: true };
-        } else if (character === 'subzero') {
-            if (this.keys['arrowup']) return { type: 'jumping', isHeld: true };
-            if (this.keys['arrowdown']) return { type: 'ducking', isHeld: true };
-            if (this.keys['0']) return { type: 'blockingidle', isHeld: true };
+    getMoveType(characterId) {
+        const isScorpion = characterId === 'scorpion';
+        const duckKey = isScorpion ? 's' : 'arrowdown';
+        const jumpKey = isScorpion ? 'w' : 'arrowup';
+        const blockKey = isScorpion ? ' ' : '0';
+
+        // Проверяем блок в приседе
+        if (this.keys[duckKey] && this.keys[blockKey]) {
+            return { type: 'blockingduck', isHeld: true };
         }
-        return { type: null, isHeld: false };
+        // Проверяем обычный блок
+        else if (this.keys[blockKey]) {
+            return { type: 'blockingidle', isHeld: true };
+        }
+        // Проверяем присед
+        else if (this.keys[duckKey]) {
+            return { type: 'ducking', isHeld: true };
+        }
+        // Проверяем прыжок
+        else if (this.keys[jumpKey]) {
+            return { type: 'jumping', isHeld: true };
+        }
+
+        return { type: 'idle', isHeld: false };
     }
 
     isJumpKeyReleased(character) {
