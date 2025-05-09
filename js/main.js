@@ -384,4 +384,13 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     window.addEventListener('hashchange', openByHash);
     openByHash();
+
+    // Добавляю звук при наведении на кнопки меню
+    const menuSound = new Audio('assets/sounds/ui/mk1-00163.mp3');
+    document.querySelectorAll('[menu-sound]').forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+            menuSound.currentTime = 0;
+            menuSound.play();
+        });
+    });
 });
