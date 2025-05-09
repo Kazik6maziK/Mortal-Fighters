@@ -179,9 +179,13 @@ export class Sprite {
     }
 
     updatePosition() {
-        // Границы с учётом индивидуальных размеров
-        const minX = window.innerWidth * 0.1 + this.width/2;
-        const maxX = window.innerWidth * 0.9 - this.width/2;
+        // Получаем размеры контейнера
+        const container = document.getElementById('game-container');
+        const containerRect = container.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        // Границы с учётом индивидуальных размеров и размеров контейнера
+        const minX = containerWidth * 0.05 + this.width / 2;
+        const maxX = containerWidth * 0.95 - this.width / 2;
         this.x = Math.max(minX, Math.min(this.x, maxX));
         
         // Добавляем эффект прыжка через CSS transform
