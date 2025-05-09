@@ -50,6 +50,38 @@ export class SoundManager {
             hitScreams: null,
             battleCries: null
         };
+
+        // Предзагруженные аудио элементы
+        this.preloadedAudio = {};
+    }
+
+    async preloadSounds() {
+        const allSounds = [
+            ...this.sounds.hitSounds,
+            ...this.sounds.hitScreams,
+            ...this.sounds.battleCries,
+            this.sounds.missSound,
+            this.sounds.fightSound,
+            ...Object.values(this.sounds.victorySounds)
+        ];
+
+        const loadPromises = allSounds.map(soundPath => {
+            return new Promise((resolve, reject) => {
+                const audio = new Audio();
+                audio.src = soundPath;
+                audio.preload = 'auto';
+                
+                audio.addEventListener('canplaythrough', () => {
+                    this.preloadedAudio[soundPath] = audio;
+                    resolve();
+                }, { once: true });
+                
+                audio.addEventListener('error', reject);
+                audio.load();
+            });
+        });
+
+        await Promise.all(loadPromises);
     }
 
     playRandomSound(soundType) {
@@ -62,8 +94,9 @@ export class SoundManager {
         } while (sounds[randomIndex] === this.lastPlayedSounds[soundType] && sounds.length > 1);
 
         this.lastPlayedSounds[soundType] = sounds[randomIndex];
-        const audio = new Audio(sounds[randomIndex]);
+        const audio = this.preloadedAudio[sounds[randomIndex]] || new Audio(sounds[randomIndex]);
         audio.volume = 0.5;
+        audio.currentTime = 0;
         audio.play().catch(error => console.log('Error playing sound:', error));
     }
 
@@ -85,28 +118,32 @@ export class SoundManager {
         } while (sounds[randomIndex] === this.lastPlayedSounds.battleCries && sounds.length > 1);
 
         this.lastPlayedSounds.battleCries = sounds[randomIndex];
-        const audio = new Audio(sounds[randomIndex]);
+        const audio = this.preloadedAudio[sounds[randomIndex]] || new Audio(sounds[randomIndex]);
         audio.volume = 0.25;
+        audio.currentTime = 0;
         audio.play().catch(error => console.log('Error playing battle cry:', error));
     }
 
     playMissSound() {
-        const audio = new Audio(this.sounds.missSound);
+        const audio = this.preloadedAudio[this.sounds.missSound] || new Audio(this.sounds.missSound);
         audio.volume = 0.5;
+        audio.currentTime = 0;
         audio.play().catch(error => console.log('Error playing miss sound:', error));
     }
 
     playFightSound() {
-        const audio = new Audio(this.sounds.fightSound);
+        const audio = this.preloadedAudio[this.sounds.fightSound] || new Audio(this.sounds.fightSound);
         audio.volume = 0.5;
+        audio.currentTime = 0;
         audio.play().catch(error => console.log('Error playing fight sound:', error));
     }
 
     playVictorySound(winner) {
         const soundPath = this.sounds.victorySounds[winner.toLowerCase()];
         if (soundPath) {
-            const audio = new Audio(soundPath);
+            const audio = this.preloadedAudio[soundPath] || new Audio(soundPath);
             audio.volume = 0.5;
+            audio.currentTime = 0;
             audio.play().catch(error => console.log('Error playing victory sound:', error));
         }
     }

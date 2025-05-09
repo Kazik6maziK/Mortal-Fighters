@@ -1,6 +1,7 @@
 import { Sprite } from './core/Sprite.js';
 import { InputHandler } from './core/InputHandler.js';
 import { SoundManager } from './core/SoundManager.js';
+import { BloodEffect } from './core/BloodEffect.js';
 
 // Конфигурация игры
 const CONFIG = {
@@ -8,7 +9,7 @@ const CONFIG = {
     VERTICAL_POSITION: 15, // % от нижнего края
     MOVEMENT_SPEED: 4,
     MAX_HEALTH: 100,
-    ATTACK_RANGE: 100, // Дистанция для попадания
+    ATTACK_RANGE: 125, // Дистанция для попадания
     DAMAGE: {
         punch: 5,
         kick: 8,
@@ -36,13 +37,16 @@ class Game {
         this.characters = {};
         this.lastTime = 0;
         this.healthBars = {
-            scorpion: document.getElementById('scorpion-health'),
-            subzero: document.getElementById('subzero-health')
+            scorpion: {
+                main: document.getElementById('scorpion-health'),
+                damage: document.getElementById('scorpion-health-damage')
+            },
+            subzero: {
+                main: document.getElementById('subzero-health'),
+                damage: document.getElementById('subzero-health-damage')
+            }
         };
-        this.damageBars = {
-            scorpion: document.getElementById('scorpion-damage'),
-            subzero: document.getElementById('subzero-damage')
-        };
+        this.fightAnimation = document.getElementById('fight-animation');
         this.gameOver = false;
         this.soundManager = new SoundManager();
         this.init();
@@ -52,14 +56,14 @@ class Game {
         // Инициализация персонажей
         this.characters.scorpion = new Sprite('#scorpion', {
             basePath: 'assets/characters/scorpion',
-            startX: window.innerWidth * 0.35, // 15% левее центра
+            startX: 800 * 0.35, // 35% от ширины окна
             health: CONFIG.MAX_HEALTH,
             characterId: 'scorpion'
         });
 
         this.characters.subzero = new Sprite('#subzero', {
             basePath: 'assets/characters/subzero',
-            startX: window.innerWidth * 0.65, // 15% правее центра
+            startX: 800 * 0.65, // 65% от ширины окна
             health: CONFIG.MAX_HEALTH,
             characterId: 'subzero'
         });
@@ -67,11 +71,14 @@ class Game {
         // Установка начального здоровья
         this.updateHealthBars();
 
-        // Предзагрузка всех анимаций
-        await this.preloadAssets();
+        // Предзагрузка всех анимаций и звуков
+        await Promise.all([
+            this.preloadAssets(),
+            this.soundManager.preloadSounds()
+        ]);
         
-        // Проигрываем звук "Fight!" при старте игры
-        this.soundManager.playFightSound();
+        // Показываем анимацию "Fight!" и проигрываем звук
+        this.showFightAnimation();
         
         // Старт игрового цикла
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
@@ -105,34 +112,35 @@ class Game {
         ]);
     }
 
-    updateHealthBars() {
-        // Зеленый бар (текущее HP)
-        this.healthBars.scorpion.style.width = `${this.characters.scorpion.health}%`;
-        this.healthBars.subzero.style.width = `${this.characters.subzero.health}%`;
-        // Красный бар (анимированное "отнятие" HP)
-        this.animateDamageBar('scorpion');
-        this.animateDamageBar('subzero');
+    showFightAnimation() {
+        this.fightAnimation.classList.add('show');
+        this.soundManager.playFightSound();
+        
+        // Скрываем анимацию через 1 секунду
+        setTimeout(() => {
+            this.fightAnimation.classList.remove('show');
+        }, 1000);
     }
 
-    animateDamageBar(character) {
-        const hp = this.characters[character].health;
-        const damageBar = this.damageBars[character];
-        // Если красный бар уже меньше или равен HP, просто выставляем равным HP
-        const currentWidth = parseFloat(damageBar.style.width) || 0;
-        if (currentWidth <= hp) {
-            damageBar.style.width = hp + '%';
-        } else {
-            // Анимированное уменьшение до нового HP
+    updateHealthBars() {
+        Object.entries(this.characters).forEach(([id, character]) => {
+            const healthPercent = (character.health / CONFIG.MAX_HEALTH) * 100;
+            const healthBars = this.healthBars[id];
+            
+            // Обновляем основной индикатор здоровья
+            healthBars.main.style.width = `${healthPercent}%`;
+            
+            // Обновляем индикатор урона с задержкой
             setTimeout(() => {
-                damageBar.style.width = hp + '%';
-            }, 50);
-        }
+                healthBars.damage.style.width = `${healthPercent}%`;
+            }, 300);
+        });
     }
 
     handleResize() {
         // Обновляем позиции персонажей относительно центра
-        const centerX = window.innerWidth / 2;
-        const offset = window.innerWidth * 0.15; // 15% от ширины окна
+        const centerX = 800; // Фиксированная ширина окна
+        const offset = 800 * 0.15; // 15% от ширины окна
 
         this.characters.scorpion.x = centerX - offset;
         this.characters.subzero.x = centerX + offset;
@@ -159,6 +167,13 @@ class Game {
                 this.soundManager.playBattleCry(); // Звук атакующего
                 this.soundManager.playHitSound(); // Звук удара
                 this.soundManager.playHitScream(); // Звук получающего урон
+
+                // Создаем эффект крови на персонаже
+                const defenderElement = document.getElementById(defender.characterId);
+                const defenderRect = defenderElement.getBoundingClientRect();
+                const bloodX = defenderRect.left + defenderRect.width / 2;
+                const bloodY = defenderRect.top + defenderRect.height / 2;
+                new BloodEffect(bloodX, bloodY);
 
                 const damage = CONFIG.DAMAGE[attackType];
                 const isDefeated = defender.takeHit(damage);
@@ -206,8 +221,8 @@ class Game {
         this.updateHealthBars();
 
         // Возвращаем персонажей на исходные позиции
-        const centerX = window.innerWidth / 2;
-        const offset = window.innerWidth * 0.15;
+        const centerX = 800; // Фиксированная ширина окна
+        const offset = 800 * 0.15; // 15% от ширины окна
         
         this.characters.scorpion.x = centerX - offset;
         this.characters.subzero.x = centerX + offset;
@@ -216,8 +231,8 @@ class Game {
             character.updatePosition();
         });
 
-        // Проигрываем звук "Fight!" при перезапуске боя
-        this.soundManager.playFightSound();
+        // Показываем анимацию "Fight!" и проигрываем звук при перезапуске боя
+        this.showFightAnimation();
     }
 
     updateCharacter(characterId, opponentX) {
@@ -297,8 +312,8 @@ class Game {
         character.updateDirection(shouldFaceLeft ? -1 : 1);
 
         // Обновление позиции с учётом границ
-        const minX = window.innerWidth * CONFIG.BOUNDARY_OFFSET + character.width/2;
-        const maxX = window.innerWidth * (1 - CONFIG.BOUNDARY_OFFSET) - character.width/2;
+        const minX = 800 * 0.05 + character.width / 2;
+        const maxX = 800 * 0.95 - character.width / 2;
         character.x = Math.max(minX, Math.min(character.x, maxX));
         character.updatePosition();
     }
@@ -325,26 +340,114 @@ class Game {
             this.soundManager.playVictorySound('scorpion');
         }
     }
-
-    // Показать гифку FIGHT! на 1 секунду
-    showFightGif() {
-        const fightGif = document.getElementById('fight-gif');
-        if (!fightGif) return;
-        fightGif.style.display = 'block';
-        setTimeout(() => {
-            fightGif.style.display = 'none';
-        }, 1000);
-    }
 }
 
-// Переопределим playFightSound чтобы показывать гифку
-const origPlayFightSound = SoundManager.prototype.playFightSound;
-SoundManager.prototype.playFightSound = function() {
-    origPlayFightSound.call(this);
-    if (window.gameInstance && typeof window.gameInstance.showFightGif === 'function') {
-        window.gameInstance.showFightGif();
-    }
-};
+// Запуск игры
+// new Game();
 
-// Создаем игру и сохраняем ссылку для FIGHT! гифки
-window.gameInstance = new Game();
+// --- Стартовое меню Mortal Kombat ---
+window.addEventListener('DOMContentLoaded', () => {
+    const menu = document.getElementById('start-menu');
+    const btnPlay = document.getElementById('btn-play');
+    const btnControls = document.getElementById('btn-controls');
+    const btnAbout = document.getElementById('btn-about');
+    const fightAnimation = document.getElementById('fight-animation');
+
+    // Скрываем гифку FIGHT! при показе меню (или перезагрузке)
+    if (fightAnimation) fightAnimation.classList.remove('show');
+
+    // Модальные окна для информации
+    let infoModal = null;
+    function showModal(title, text, hash) {
+        if (infoModal) infoModal.remove();
+        infoModal = document.createElement('div');
+        infoModal.className = 'mk-menu-overlay';
+        infoModal.innerHTML = `
+            <div class="mk-menu-box">
+                <div class="mk-menu-title">${title}</div>
+                <div style="color:#fff; font-size:1.1em; margin:18px 0 24px 0; text-align:left;">${text}</div>
+            </div>
+        `;
+        document.body.appendChild(infoModal);
+        if (hash) window.location.hash = hash;
+    }
+
+    btnPlay.onclick = () => {
+        menu.style.display = 'none';
+        setTimeout(() => {
+            window.startMortalKombatGame && window.startMortalKombatGame();
+            window.location.hash = '#Game';
+        }, 100);
+    };
+    btnControls.onclick = () => {
+        showModal('УПРАВЛЕНИЕ', `
+            <b>Scorpion:</b><br>
+            <b>A</b>, <b>D</b> — влево, вправо<br>
+            <b>W</b>, <b>S</b> — прыгнуть, присесть<br>
+            <b>Пробел</b> — блок<br>
+            <b>J</b> — удар ногой с разворота<br>
+            <b>K</b> — удар ногой<br>
+            <b>L</b> — удар рукой<br>
+            <b>I</b> — апперкот<br>
+            <br>
+            <b>Sub-Zero:</b><br>
+            <b>←</b>, <b>→</b> — влево, вправо<br>
+            <b>↑</b>, <b>↓</b> — прыгнуть, присесть<br>
+            <b>NumPad 0</b> — блок<br>
+            <b>NumPad 4</b> — удар рукой<br>
+            <b>NumPad 8</b> — апперкот<br>
+            <b>NumPad 5</b> — удар ногой<br>
+            <b>NumPad 6</b> — удар ногой с разворота<br>
+            <br>
+            <i>Когда персонажи оказываются по разные стороны друг от друга,<br>
+            кнопки <b>J</b> и <b>L</b> (у Scorpion), <b>4</b> и <b>6</b> (у Sub-Zero) меняются местами для ударов рукой и ногой с разворота.</i>
+        `, '#Controls');
+    };
+    btnAbout.onclick = () => {
+        showModal('ОБ ИГРЕ', `
+            <b>Mortal Fighters</b> — браузерная фан-игра в стиле классического Mortal Kombat.<br><br>
+            Два персонажа: Scorpion и Sub-Zero.<br>
+            Классические удары, прыжки, блок, кровь.<br>
+            Аутентичный ретро-дизайн и звуки.<br>
+            Управление с клавиатуры.<br>
+            <br>
+            <b>Автор:</b> Dmitry
+        `, '#About');
+    };
+
+    // Блокируем запуск игры до нажатия "Играть"
+    window.startMortalKombatGame = function() {
+        if (!window._gameStarted) {
+            window._gameStarted = true;
+            new Game();
+        }
+    };
+
+    if (window._gameStarted) menu.style.display = 'none';
+
+    // --- Реакция на hashchange и прямой переход по hash ---
+    function openByHash() {
+        if (infoModal) infoModal.remove();
+        const hash = window.location.hash;
+        if (hash === '#Controls') {
+            btnControls.click();
+        } else if (hash === '#About') {
+            btnAbout.click();
+        } else if (hash === '#Game') {
+            menu.style.display = 'none';
+            if (!window._gameStarted) {
+                window._gameStarted = true;
+                new Game();
+            }
+        } else if (hash === '#Main' || hash === '' || hash === '#') {
+            if (window._gameStarted) {
+                window.location.reload();
+                return;
+            }
+            if (infoModal) infoModal.remove();
+            menu.style.display = '';
+        }
+    }
+    window.addEventListener('hashchange', openByHash);
+    openByHash(); // при загрузке страницы
+});

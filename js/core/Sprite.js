@@ -174,7 +174,7 @@ export class Sprite {
     updateDirection(newDirection) {
         if (this.direction !== newDirection) {
             this.direction = newDirection;
-            this.element.style.transform = `scaleX(${newDirection})`;
+            this.element.style.transform = `scale(1.25) scaleX(${newDirection})`;
         }
     }
 
@@ -185,7 +185,7 @@ export class Sprite {
         this.x = Math.max(minX, Math.min(this.x, maxX));
         
         // Добавляем эффект прыжка через CSS transform
-        let transform = `scaleX(${this.direction})`;
+        let transform = `scale(1.25) scaleX(${this.direction})`;
         if (this.isJumping) {
             // Разная высота для разных фаз прыжка
             const jumpHeight = this.state === 'jumping' ? -30 : -60;
